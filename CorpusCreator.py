@@ -18,3 +18,11 @@ def phonemize(text):
         .replace("\t", " ").replace("¡", "").replace("¿", "").replace(",", "~")
     phones = re.sub("~+", "~", phones)
     return phones
+
+class CorpusCreator:
+
+    def __init__(self, corpus_name):
+        pass
+
+    def run(self):
+        pass
