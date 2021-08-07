@@ -27,3 +27,5 @@ unnormalized text column, there is an IPA phonemized column.
 
 The recordings are done in 16kHz, to safe space. For prosodically standard speech, 16kHz is enough in my opinion.
 Emotional speech etc. requires a higher sampling rate, which can easily be changed in the code.
+
+To change sampling rate or phonemizer language, take a look at the parameters.py file.
