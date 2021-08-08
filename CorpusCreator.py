@@ -82,7 +82,9 @@ class CorpusCreator:
 
         sg.theme('DarkGreen2')
         layout = [[sg.Text("", font="Any 20", size=(2000, 1), pad=((0, 0), (350, 20)), justification='center', key="sentence"), ],
-                  [sg.Text("", font="Any 18", size=(2000, 1), pad=(0, 0), justification='center', key="phonemes"), ]]
+                  [sg.Text("", font="Any 18", size=(2000, 1), pad=(0, 0), justification='center', key="phonemes"), ],
+                  [sg.Text("Left CTRL-Key for push-to-talk, ESC-Key to exit", font="Any 10", size=(2000, 1), pad=((0, 0), (300, 0)),
+                           justification='center', ), ]]
         window = sg.Window(self.corpus_name, layout)
         window.read(5)
         window.bring_to_front()
@@ -90,9 +92,7 @@ class CorpusCreator:
 
         while True:
             event, values = window.read(200)
-            if event == sg.WIN_CLOSED:
-                break
-            if self.stop_flag:
+            if event == sg.WIN_CLOSED or self.stop_flag:
                 break
             window["sentence"].update(self.datapoint[0])
             window["phonemes"].update(self.datapoint[1])
