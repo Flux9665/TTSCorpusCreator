@@ -1,1 +1,4 @@
 phonemizer
+pysimplegui
+matplotlib
+pynput

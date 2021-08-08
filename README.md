@@ -13,11 +13,9 @@ time, it will create the file that maps prompts to audios and begin with the fir
 is controlled by keybinds only.
 
 The window will display a sentence. When you are ready, press and hold /CTRL/. While that key is pressed, your
-microphone will record. After you release the key, the recording is done, and the wave will be displayed. If you are
-satisfied with the wave (especially with the silence in the beginning and end, which should be as close to none as you
-can get), you can hit /SPACE/, in order to save it to the corpus and advance to the next sentence. If you're not happy,
-hit /BACKSPACE/ to discard the recording. Then you can record again with /CTRL/. When you are done with a session, press
-/ESC/ to exit the program safely.
+microphone will record. After you release the key, the recording is done, the audio will be saved, and the lookup will
+be updated. Then the next datapoint will be loaded. Then you can record again with /CTRL/. When you are done with a
+session, press /ESC/ to exit the program safely.
 
 ---
 
