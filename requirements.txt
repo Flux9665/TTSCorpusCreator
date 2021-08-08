@@ -2,3 +2,6 @@ phonemizer
 pysimplegui
 matplotlib
 pynput
+pyaudio
+pyloudnorm
+torchaudio

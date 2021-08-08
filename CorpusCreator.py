@@ -4,6 +4,7 @@ from multiprocessing import Manager
 
 import PySimpleGUI as sg
 import phonemizer
+from pynput import keyboard
 
 import parameters
 
@@ -34,6 +35,7 @@ class CorpusCreator:
         self.datapoint = self.resource_manager.list()
         self.datapoint.append("")
         self.datapoint.append("")
+        self.stop_flag = False
         self.index = self.resource_manager.list()
         self.audio_datapoint = self.resource_manager.list()
         self.lookup_path = "Corpora/{}/metadata.csv".format(corpus_name)
@@ -56,27 +58,27 @@ class CorpusCreator:
         self.datapoint[0] = sentence
         self.datapoint[1] = phonemize(sentence)
 
-    def update_lookup(self, datapoint):
+    def update_lookup(self):
         """
         Call this when the datapoint is recorded and saved. Load new Datapoint AFTER this has completed
         """
         with open(self.lookup_path, mode='r', encoding='utf8') as lookup_file:
             current_file = lookup_file.read()
-        new_file = current_file + "\n" + "{}|{}|{}".format("{}.wav".format(len(self.index)), datapoint[0], datapoint[1])
+        new_file = current_file + "\n" + "{}|{}|{}".format("{}.wav".format(len(self.index)), self.datapoint[1], self.datapoint[0])
         with open(self.lookup_path, mode='w', encoding='utf8') as lookup_file:
             lookup_file.write(new_file)
             if len(self.prompt_list) > 1:
                 self.prompt_list.pop(0)
             else:
-                import sys
-                sys.exit()
+                self.stop_flag = True
             self.index.append("")
 
     def run(self):
         """
         TKinter really wants to stay in the main-thread, so this just starts the key-listener and then keeps updating the window.
         """
-        # TODO start key listener here
+        listener = keyboard.Listener(on_press=self.handle_key)
+        listener.start()
 
         sg.theme('DarkGreen2')
         layout = [[sg.Text("", font="Any 20", size=(2000, 1), pad=((0, 0), (350, 20)), justification='center', key="sentence"), ],
@@ -88,21 +90,30 @@ class CorpusCreator:
 
         while True:
             event, values = window.read(200)
-            window.force_focus()
             if event == sg.WIN_CLOSED:
+                break
+            if self.stop_flag:
                 break
             window["sentence"].update(self.datapoint[0])
             window["phonemes"].update(self.datapoint[1])
-
+        listener.stop()
         window.close()
 
-    def handle_ctrl(self):
+    def handle_key(self, key):
         # while key down: record.
         # After key no longer down, save audio as file named len(index)+1.wav.
         # Then call update_lookup
         # then call update datapoint and pass self.prompt_list[0]
-        pass
+        if key == keyboard.Key.ctrl_l:
+            self.update_lookup()
+            self.update_datapoint(self.prompt_list[0])
+        elif key == keyboard.Key.esc:
+            self.stop_flag = True
 
 
 def cut_silence_from_begin_and_end():
+    # normalize amplitude
+    # add silence to beginning
+    # add silence to end
+    # apply vad
     pass
