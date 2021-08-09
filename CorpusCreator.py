@@ -1,4 +1,3 @@
-import multiprocessing
 import os
 import re
 import time
@@ -24,23 +23,23 @@ class CorpusCreator:
         """
         Load prompt list and prepare status quo
         """
-        multiprocessing.set_start_method('spawn', force=False)
         self.corpus_name = corpus_name
-        self.resource_manager = Manager()
-        self.datapoint = self.resource_manager.list()
-        self.datapoint.append("")
-        self.datapoint.append("")
-        self.record_flag = self.resource_manager.list()
-        self.stop_flag = False
-        self.stop_recorder_process_flag = self.resource_manager.list()
-        self.index = self.resource_manager.list()
+        self.index = Manager().list()
         self.vad = self.vad = VoiceActivityDetection(sample_rate=parameters.sampling_rate)
-        self.meter = pyloudnorm.Meter(parameters.sampling_rate)
         self.pyaudio = pyaudio.PyAudio()
-        self.lookup_path = "Corpora/{}/metadata.csv".format(corpus_name)
+        self.meter = pyloudnorm.Meter(parameters.sampling_rate)
         self.audio_save_dir = "Corpora/{}/".format(corpus_name)
+        self.record_flag = Manager().list()
+        self.stop_recorder_process_flag = Manager().list()
+        recorder_process = Process(target=self.recorder)
+        recorder_process.start()
+        self.stop_flag = False
+        self.datapoint = Manager().list()
+        self.datapoint.append("")
+        self.datapoint.append("")
+        self.lookup_path = "Corpora/{}/metadata.csv".format(corpus_name)
         with open("Corpora/{}/prompts.txt".format(corpus_name), mode='r', encoding='utf8') as prompts:
-            self.prompt_list = self.resource_manager.list(prompts.read().split("\n"))
+            self.prompt_list = Manager().list(prompts.read().split("\n"))
         if not os.path.exists(self.lookup_path):
             with open(self.lookup_path, mode='w', encoding='utf8') as lookup_file:
                 lookup_file.write("")
@@ -80,8 +79,6 @@ class CorpusCreator:
         listener = keyboard.Listener(on_press=self.handle_key_down, on_release=self.handle_key_up)
         listener.start()
 
-        Process(target=self.recorder, daemon=True).start()  # TODO FIXME this causes a crash
-
         sg.theme('DarkGreen2')
         layout = [[sg.Text("", font="Any 20", size=(2000, 1), pad=((0, 0), (350, 20)), justification='center', key="sentence"), ],
                   [sg.Text("", font="Any 18", size=(2000, 1), pad=(0, 0), justification='center', key="phonemes"), ],
@@ -104,32 +101,40 @@ class CorpusCreator:
         self.pyaudio.terminate()
 
     def handle_key_down(self, key):
-        if key == keyboard.Key.ctrl_l:
+        if key == keyboard.Key.ctrl_l and len(self.record_flag) == 0:
             self.record_flag.append("")
         elif key == keyboard.Key.esc:
             self.stop_flag = True
 
     def handle_key_up(self, key):
         if key == keyboard.Key.ctrl_l:
-            self.record_flag.clear()
+            while len(self.record_flag) > 0:
+                self.record_flag.pop()
             self.update_lookup()
-            self.update_datapoint(self.prompt_list[0])
+            if len(self.prompt_list) > 0:
+                self.update_datapoint(self.prompt_list[0])
 
     def recorder(self):
         while True:
             if len(self.stop_recorder_process_flag) != 0:
                 break
-            elif len(self.record_flag) != 0:
+            if len(self.record_flag) != 0:
+                print("1")
                 stream = self.pyaudio.open(format=pyaudio.paInt16,
                                            channels=1,
                                            rate=parameters.sampling_rate,
                                            input=True,
-                                           frames_per_buffer=1024)
+                                           output=False,
+                                           frames_per_buffer=1024,
+                                           input_device_index=1)
+                print("2")
                 frames = list()
                 while len(self.record_flag) != 0:
+                    print("3")
                     frames.append(stream.read(1024))
                 stream.stop_stream()
                 stream.close()
+                print("4")
                 audio = self.apply_signal_processing(frames)
                 sf.write(file=self.audio_save_dir + "{}.wav".format(len(self.index) + 1), data=audio, samplerate=parameters.sampling_rate)
             else:
