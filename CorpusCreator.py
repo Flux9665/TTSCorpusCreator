@@ -5,7 +5,7 @@ from multiprocessing import Manager
 from multiprocessing import Process
 
 import PySimpleGUI as sg
-import numpy
+import numpy as np
 import phonemizer
 import pyaudio
 import pyloudnorm
@@ -26,7 +26,6 @@ class CorpusCreator:
         self.corpus_name = corpus_name
         self.index = Manager().list()
         self.vad = self.vad = VoiceActivityDetection(sample_rate=parameters.sampling_rate)
-        self.pyaudio = pyaudio.PyAudio()
         self.meter = pyloudnorm.Meter(parameters.sampling_rate)
         self.audio_save_dir = "Corpora/{}/".format(corpus_name)
         self.record_flag = Manager().list()
@@ -98,7 +97,7 @@ class CorpusCreator:
         self.stop_recorder_process_flag.append("")
         listener.stop()
         window.close()
-        self.pyaudio.terminate()
+        time.sleep(2)
 
     def handle_key_down(self, key):
         if key == keyboard.Key.ctrl_l and len(self.record_flag) == 0:
@@ -115,36 +114,35 @@ class CorpusCreator:
                 self.update_datapoint(self.prompt_list[0])
 
     def recorder(self):
+        pa = pyaudio.PyAudio()
         while True:
             if len(self.stop_recorder_process_flag) != 0:
+                pa.terminate()
                 break
             if len(self.record_flag) != 0:
-                print("1")
-                stream = self.pyaudio.open(format=pyaudio.paInt16,
-                                           channels=1,
-                                           rate=parameters.sampling_rate,
-                                           input=True,
-                                           output=False,
-                                           frames_per_buffer=1024,
-                                           input_device_index=1)
-                print("2")
+                stream = pa.open(format=pyaudio.paFloat32,
+                                 channels=1,
+                                 rate=parameters.sampling_rate,
+                                 input=True,
+                                 output=False,
+                                 frames_per_buffer=1024,
+                                 input_device_index=1)
                 frames = list()
                 while len(self.record_flag) != 0:
-                    print("3")
-                    frames.append(stream.read(1024))
+                    frames.append(np.frombuffer(stream.read(1024), dtype=np.float32))
                 stream.stop_stream()
                 stream.close()
-                print("4")
-                audio = self.apply_signal_processing(frames)
-                sf.write(file=self.audio_save_dir + "{}.wav".format(len(self.index) + 1), data=audio, samplerate=parameters.sampling_rate)
+                audio = np.hstack(frames)
+                audio = self.apply_signal_processing(audio)
+                sf.write(file=self.audio_save_dir + "{}.wav".format(len(self.index) - 1), data=audio, samplerate=parameters.sampling_rate)
             else:
                 time.sleep(0.01)
 
     def normalize_loudness(self, audio):
         loudness = self.meter.integrated_loudness(audio)
         loud_normed = pyloudnorm.normalize.loudness(audio, loudness, -30.0)
-        peak = numpy.amax(numpy.abs(loud_normed))
-        peak_normed = numpy.divide(loud_normed, peak)
+        peak = np.amax(np.abs(loud_normed))
+        peak_normed = np.divide(loud_normed, peak)
         return peak_normed
 
     def cut_silence_from_begin_and_end(self, audio):
