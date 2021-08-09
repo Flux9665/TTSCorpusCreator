@@ -146,7 +146,7 @@ class CorpusCreator:
         return peak_normed
 
     def cut_silence_from_begin_and_end(self, audio):
-        silence = torch.zeros([10000])
+        silence = torch.zeros([20000])
         no_silence_front = self.vad(torch.cat((silence, torch.Tensor(audio), silence), 0))
         reversed_audio = torch.flip(no_silence_front, (0,))
         no_silence_back = self.vad(torch.Tensor(reversed_audio))

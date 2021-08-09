@@ -26,3 +26,8 @@ The recordings are done in 16kHz, to safe space. For prosodically standard speec
 Emotional speech etc. requires a higher sampling rate, which can easily be changed.
 
 To change sampling rate or phonemizer language, take a look at the parameters.py file.
+
+A bit of signal processing is applied to get a uniform loudness and silences are automatically removed from beginning
+and end. Depending on your microphone, you might want to tweak some settings in the code or remove the call to the
+signal processing part entirely and save unedited audio. Just record a few samples and see if they are fine before
+committing to something big.
