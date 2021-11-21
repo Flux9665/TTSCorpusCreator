@@ -67,8 +67,12 @@ class Prompter:
         listener.start()
 
         sg.theme('DarkGreen2')
-        layout = [[sg.Text("", font="Any 20", size=(2000, 1), pad=((0, 0), (350, 20)), justification='center', key="sentence"), ],
-                  [sg.Text("", font="Any 18", size=(2000, 1), pad=(0, 0), justification='center', key="phonemes"), ],
+        layout = [[sg.Text("", font="Any 20", size=(2000, 1), pad=((0, 0), (350, 0)), justification='center', key="sentence1"), ],
+                  [sg.Text("", font="Any 20", size=(2000, 1), pad=(0, 0), justification='center', key="sentence2"), ],
+                  [sg.Text("", font="Any 20", size=(2000, 1), pad=((0, 0), (0, 30)), justification='center', key="sentence3"), ],
+                  [sg.Text("", font="Any 18", size=(2000, 1), pad=(0, 0), justification='center', key="phonemes1"), ],
+                  [sg.Text("", font="Any 18", size=(2000, 1), pad=(0, 0), justification='center', key="phonemes2"), ],
+                  [sg.Text("", font="Any 18", size=(2000, 1), pad=(0, 0), justification='center', key="phonemes3"), ],
                   [sg.Text("Left CTRL-Key for next, ALT-Key for previous, ESC-Key to exit", font="Any 10", size=(2000, 1),
                            pad=((0, 0), (300, 0)),
                            justification='center', ), ]]
@@ -81,11 +85,43 @@ class Prompter:
             event, values = window.read(200)
             if event == sg.WIN_CLOSED or self.stop_flag:
                 break
-            window["sentence"].update(self.datapoint[0])
-            window["phonemes"].update(self.datapoint[1])
+            window["sentence1"].update("")
+            window["sentence2"].update("")
+            window["phonemes2"].update("")
+            window["phonemes3"].update("")
+            window["sentence3"].update(self.datapoint[0])
+            window["phonemes1"].update(self.datapoint[1])
+            if len(self.datapoint[0]) > 45:
+                prompt_list = self.datapoint[0].split()
+                promt1 = " ".join(prompt_list[:-int(len(prompt_list) / 2)])
+                promt2 = " ".join(prompt_list[-int(len(prompt_list) / 2):])
+                window["sentence2"].update(promt1)
+                window["sentence3"].update(promt2)
+            if len(self.datapoint[1]) > 45:
+                phoneme_list = self.datapoint[1].split()
+                phonemes1 = " ".join(phoneme_list[:-int(len(phoneme_list) / 2)])
+                phonemes2 = " ".join(phoneme_list[-int(len(phoneme_list) / 2):])
+                window["phonemes1"].update(phonemes1)
+                window["phonemes2"].update(phonemes2)
+            if len(self.datapoint[0]) > 90:
+                prompt_list = self.datapoint[0].split()
+                promt1 = " ".join(prompt_list[:-int(len(prompt_list) / 3) * 2])
+                promt2 = " ".join(prompt_list[-int(len(prompt_list) / 3) * 2:-int(len(prompt_list) / 3)])
+                promt3 = " ".join(prompt_list[-int(len(prompt_list) / 3):])
+                window["sentence1"].update(promt1)
+                window["sentence2"].update(promt2)
+                window["sentence3"].update(promt3)
+            if len(self.datapoint[1]) > 90:
+                phoneme_list = self.datapoint[1].split()
+                phonemes1 = " ".join(phoneme_list[:-int(len(phoneme_list) / 3) * 2])
+                phonemes2 = " ".join(phoneme_list[-int(len(phoneme_list) / 3) * 2:-int(len(phoneme_list) / 3)])
+                phonemes3 = " ".join(phoneme_list[-int(len(phoneme_list) / 3):])
+                window["phonemes1"].update(phonemes1)
+                window["phonemes2"].update(phonemes2)
+                window["phonemes3"].update(phonemes3)
         listener.stop()
         window.close()
-        time.sleep(2)
+        time.sleep(1)
 
     def handle_key_down(self, key):
         if key == keyboard.Key.ctrl_l:

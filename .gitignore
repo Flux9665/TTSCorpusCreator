@@ -7,3 +7,5 @@ tensorboard_logs
 *.csv
 playground.py
 Corpora/
+dirndl.txt
+dirndl_prompts.txt
