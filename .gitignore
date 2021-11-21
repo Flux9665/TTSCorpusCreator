@@ -5,3 +5,5 @@
 tensorboard_logs
 *.wav
 *.csv
+playground.py
+Corpora/

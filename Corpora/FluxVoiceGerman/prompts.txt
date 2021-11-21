@@ -1,3 +1,5 @@
-Hallo Welt!
-Das ist ein Satz.
-Auch dies hier, ist durchaus ein Satz.
+Das ist der erste Satz
+Das ist der zweite Satz
+Und drei Sätze sind genug zum testen.
+Oder vielleicht doch lieber 4?
+Naja, machen wir 5 um sicher zu gehen.

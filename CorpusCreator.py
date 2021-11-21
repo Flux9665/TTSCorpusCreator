@@ -11,6 +11,7 @@ import pyaudio
 import pyloudnorm
 import soundfile as sf
 import torch
+from numpy import trim_zeros
 from pynput import keyboard
 from torchaudio.transforms import Vad as VoiceActivityDetection
 
@@ -36,6 +37,7 @@ class CorpusCreator:
         self.datapoint = Manager().list()
         self.datapoint.append("")
         self.datapoint.append("")
+        self.done_ones = list()
         self.lookup_path = "Corpora/{}/metadata.csv".format(corpus_name)
         with open("Corpora/{}/prompts.txt".format(corpus_name), mode='r', encoding='utf8') as prompts:
             self.prompt_list = Manager().list(prompts.read().split("\n"))
@@ -64,9 +66,9 @@ class CorpusCreator:
             current_file = lookup_file.read()
         new_file = current_file + "\n" + "{}|{}|{}".format("{}.wav".format(len(self.index)), self.datapoint[1], self.datapoint[0])
         with open(self.lookup_path, mode='w', encoding='utf8') as lookup_file:
-            lookup_file.write(new_file)
+            lookup_file.write(new_file.strip("\n"))
             if len(self.prompt_list) > 1:
-                self.prompt_list.pop(0)
+                self.done_ones.append(self.prompt_list.pop(0))
             else:
                 self.stop_flag = True
             self.index.append("")
@@ -81,7 +83,8 @@ class CorpusCreator:
         sg.theme('DarkGreen2')
         layout = [[sg.Text("", font="Any 20", size=(2000, 1), pad=((0, 0), (350, 20)), justification='center', key="sentence"), ],
                   [sg.Text("", font="Any 18", size=(2000, 1), pad=(0, 0), justification='center', key="phonemes"), ],
-                  [sg.Text("Left CTRL-Key for push-to-talk, ESC-Key to exit", font="Any 10", size=(2000, 1), pad=((0, 0), (300, 0)),
+                  [sg.Text("Left CTRL-Key for push-to-talk, ESC-Key to exit, ALT-Key to redo the last prompt", font="Any 10", size=(2000, 1),
+                           pad=((0, 0), (300, 0)),
                            justification='center', ), ]]
         window = sg.Window(self.corpus_name, layout)
         window.read(5)
@@ -104,6 +107,21 @@ class CorpusCreator:
             self.record_flag.append("")
         elif key == keyboard.Key.esc:
             self.stop_flag = True
+        elif key == keyboard.Key.alt or key == keyboard.Key.alt_l:
+            self.go_back()
+
+    def go_back(self):
+        """
+        go back to the previous sentence and re-record it
+        """
+        with open(self.lookup_path, mode='r', encoding='utf8') as lookup_file:
+            current_file = lookup_file.read()
+        new_file = "\n".join(current_file.split("\n")[:-1]).strip("\n")
+        with open(self.lookup_path, mode='w', encoding='utf8') as lookup_file:
+            lookup_file.write(new_file)
+        self.prompt_list.insert(0, self.done_ones.pop())
+        self.index.pop()
+        self.update_datapoint(self.prompt_list[0])
 
     def handle_key_up(self, key):
         if key == keyboard.Key.ctrl_l:
@@ -133,6 +151,7 @@ class CorpusCreator:
                 stream.stop_stream()
                 stream.close()
                 audio = np.hstack(frames)
+                sf.write(file=self.audio_save_dir + "{}_raw.wav".format(len(self.index) - 1), data=audio, samplerate=parameters.sampling_rate)
                 audio = self.apply_signal_processing(audio)
                 sf.write(file=self.audio_save_dir + "{}.wav".format(len(self.index) - 1), data=audio, samplerate=parameters.sampling_rate)
             else:
@@ -151,7 +170,7 @@ class CorpusCreator:
         reversed_audio = torch.flip(no_silence_front, (0,))
         no_silence_back = self.vad(torch.Tensor(reversed_audio))
         unreversed_audio = torch.flip(no_silence_back, (0,))
-        return unreversed_audio.detach().numpy()
+        return trim_zeros(unreversed_audio.detach().numpy())
 
     def apply_signal_processing(self, audio):
         audio = self.normalize_loudness(audio)
