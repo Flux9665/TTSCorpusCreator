@@ -2,23 +2,15 @@ import os
 import re
 import time
 from multiprocessing import Manager
-from multiprocessing import Process
 
 import PySimpleGUI as sg
-import numpy as np
 import phonemizer
-import pyaudio
-import pyloudnorm
-import soundfile as sf
-import torch
-from numpy import trim_zeros
 from pynput import keyboard
-from torchaudio.transforms import Vad as VoiceActivityDetection
 
 import parameters
 
 
-class CorpusCreator:
+class Prompter:
 
     def __init__(self, corpus_name):
         """
@@ -26,13 +18,6 @@ class CorpusCreator:
         """
         self.corpus_name = corpus_name
         self.index = Manager().list()
-        self.vad = self.vad = VoiceActivityDetection(sample_rate=parameters.sampling_rate)
-        self.meter = pyloudnorm.Meter(parameters.sampling_rate)
-        self.audio_save_dir = "Corpora/{}/".format(corpus_name)
-        self.record_flag = Manager().list()
-        self.stop_recorder_process_flag = Manager().list()
-        recorder_process = Process(target=self.recorder)
-        recorder_process.start()
         self.stop_flag = False
         self.datapoint = Manager().list()
         self.datapoint.append("")
@@ -45,10 +30,11 @@ class CorpusCreator:
             with open(self.lookup_path, mode='w', encoding='utf8') as lookup_file:
                 lookup_file.write("")
         else:
-            for file in os.listdir("Corpora/{}".format(corpus_name)):
-                if file.endswith(".wav"):
-                    self.done_ones.append(self.prompt_list.pop(0))
-                    self.index.append("")
+            with open(self.lookup_path, mode='r', encoding='utf8') as lookup_file:
+                lines = lookup_file.read().split("\n")
+            for _ in lines:
+                self.prompt_list.pop(0)
+                self.index.append("")
         self.update_datapoint(self.prompt_list[0])
 
     def update_datapoint(self, sentence):
@@ -83,7 +69,7 @@ class CorpusCreator:
         sg.theme('DarkGreen2')
         layout = [[sg.Text("", font="Any 20", size=(2000, 1), pad=((0, 0), (350, 20)), justification='center', key="sentence"), ],
                   [sg.Text("", font="Any 18", size=(2000, 1), pad=(0, 0), justification='center', key="phonemes"), ],
-                  [sg.Text("Left CTRL-Key for push-to-talk, ESC-Key to exit, ALT-Key to redo the last prompt", font="Any 10", size=(2000, 1),
+                  [sg.Text("Left CTRL-Key for next, ALT-Key for previous, ESC-Key to exit", font="Any 10", size=(2000, 1),
                            pad=((0, 0), (300, 0)),
                            justification='center', ), ]]
         window = sg.Window(self.corpus_name, layout)
@@ -97,14 +83,15 @@ class CorpusCreator:
                 break
             window["sentence"].update(self.datapoint[0])
             window["phonemes"].update(self.datapoint[1])
-        self.stop_recorder_process_flag.append("")
         listener.stop()
         window.close()
         time.sleep(2)
 
     def handle_key_down(self, key):
-        if key == keyboard.Key.ctrl_l and len(self.record_flag) == 0:
-            self.record_flag.append("")
+        if key == keyboard.Key.ctrl_l:
+            self.update_lookup()
+            if len(self.prompt_list) > 0:
+                self.update_datapoint(self.prompt_list[0])
         elif key == keyboard.Key.esc:
             self.stop_flag = True
         elif key == keyboard.Key.alt or key == keyboard.Key.alt_l:
@@ -125,61 +112,7 @@ class CorpusCreator:
             self.update_datapoint(self.prompt_list[0])
 
     def handle_key_up(self, key):
-        if key == keyboard.Key.ctrl_l:
-            while len(self.record_flag) > 0:
-                self.record_flag.pop()
-            self.update_lookup()
-            if len(self.prompt_list) > 0:
-                self.update_datapoint(self.prompt_list[0])
-
-    def recorder(self):
-        pa = pyaudio.PyAudio()
-        while True:
-            if len(self.stop_recorder_process_flag) != 0:
-                pa.terminate()
-                break
-            if len(self.record_flag) != 0:
-                stream = pa.open(format=pyaudio.paFloat32,
-                                 channels=1,
-                                 rate=parameters.sampling_rate,
-                                 input=True,
-                                 output=False,
-                                 frames_per_buffer=1024,
-                                 input_device_index=1)
-                frames = list()
-                while len(self.record_flag) != 0:
-                    frames.append(np.frombuffer(stream.read(1024), dtype=np.float32))
-                stream.stop_stream()
-                stream.close()
-                audio = np.hstack(frames)
-                try:
-                    sf.write(file=self.audio_save_dir + "{}_raw.wav".format(len(self.index) - 1), data=audio, samplerate=parameters.sampling_rate)
-                    audio = self.apply_signal_processing(audio)
-                    sf.write(file=self.audio_save_dir + "{}.wav".format(len(self.index) - 1), data=audio, samplerate=parameters.sampling_rate)
-                except ValueError:
-                    print(
-                        "Recording was too short! Remember that the recording goes for as long as you keep the CTRL button PRESSED and saves when you RELEASE.")
-            else:
-                time.sleep(0.01)
-
-    def normalize_loudness(self, audio):
-        loudness = self.meter.integrated_loudness(audio)
-        loud_normed = pyloudnorm.normalize.loudness(audio, loudness, -30.0)
-        peak = np.amax(np.abs(loud_normed))
-        peak_normed = np.divide(loud_normed, peak)
-        return peak_normed
-
-    def cut_silence_from_begin_and_end(self, audio):
-        silence = torch.zeros([20000])
-        no_silence_front = self.vad(torch.cat((silence, torch.Tensor(audio), silence), 0))
-        reversed_audio = torch.flip(no_silence_front, (0,))
-        no_silence_back = self.vad(torch.Tensor(reversed_audio))
-        unreversed_audio = torch.flip(no_silence_back, (0,))
-        return trim_zeros(unreversed_audio.detach().numpy())
-
-    def apply_signal_processing(self, audio):
-        audio = self.normalize_loudness(audio)
-        return self.cut_silence_from_begin_and_end(audio)
+        pass
 
 
 def phonemize(text):
