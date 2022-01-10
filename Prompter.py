@@ -12,19 +12,19 @@ import parameters
 
 class Prompter:
 
-    def __init__(self, corpus_name):
+    def __init__(self):
         """
         Load prompt list and prepare status quo
         """
-        self.corpus_name = corpus_name
+        self.corpus_name = parameters.current_corpus_name
         self.index = Manager().list()
         self.stop_flag = False
         self.datapoint = Manager().list()
         self.datapoint.append("")
         self.datapoint.append("")
         self.done_ones = list()
-        self.lookup_path = "Corpora/{}/metadata.csv".format(corpus_name)
-        with open("Corpora/{}/prompts.txt".format(corpus_name), mode='r', encoding='utf8') as prompts:
+        self.lookup_path = "Corpora/{}/metadata.csv".format(self.corpus_name)
+        with open("Corpora/{}/prompts.txt".format(self.corpus_name), mode='r', encoding='utf8') as prompts:
             self.prompt_list = Manager().list(prompts.read().split("\n"))
         if not os.path.exists(self.lookup_path):
             with open(self.lookup_path, mode='w', encoding='utf8') as lookup_file:

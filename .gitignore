@@ -5,7 +5,7 @@
 tensorboard_logs
 *.wav
 *.csv
-playground.py
+playground*
 Corpora/
 dirndl.txt
 dirndl_prompts.txt
