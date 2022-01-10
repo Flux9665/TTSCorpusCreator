@@ -20,7 +20,7 @@ silence, sr = sf.read("Corpora/prototypical_silence.wav")
 
 current_corpus = parameters.current_corpus_name
 
-os.makedirs(f"Corpora/{current_corpus}/pre_noisereduce")
+os.makedirs(f"Corpora/{current_corpus}/pre_noisereduce", exist_ok=True)
 
 for audio in os.listdir(f"Corpora/{current_corpus}"):
     if ".wav" in audio:
