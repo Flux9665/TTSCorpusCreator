@@ -7,6 +7,14 @@ myself called FluxVoiceGerman. It uses a subset of the prompts of the preview of
 
 ---
 
+#### Installation
+
+`pip install -r requirements.txt` should suffice. Tested with python 3.8
+
+---
+
+#### Instructions
+
 To start a new corpus, create a directory inside the `Corpora` directory and give it the name you desire. In this
 directory, create a file called `prompts.txt`, which should contain one utterance per line. Update
 the `current_corpus_name` property of the `parameters.py` file. You should update the other settings as well, while you
@@ -24,6 +32,8 @@ back multiple steps, but you have to re-record all of the ones you are going bac
 session, press **[ESC]** to exit the program safely.
 
 ---
+
+#### Additional Info
 
 The format of the corpus is close to LJSpeech style, however it assumes the texts are normalized already. Instead of the
 unnormalized text column, there is an IPA phonemized column.
@@ -46,5 +56,5 @@ don't like the result and want to go back.
 
 ---
 
-List to do:
+#### List to do:
 - Figure out available screen resolution and change the size of the text accordingly.
