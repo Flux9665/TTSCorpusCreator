@@ -36,6 +36,8 @@ class Prompter:
                 self.prompt_list.pop(0)
                 self.index.append("")
         self.update_datapoint(self.prompt_list[0])
+        width, height = sg.Window.get_screen_size()
+        self.scaling_factor = height / 1080  # this was developed on a 1080p display, so all UI elements need to be downscaled for smaller heights
 
     def update_datapoint(self, sentence):
         """
@@ -67,14 +69,41 @@ class Prompter:
         listener.start()
 
         sg.theme('DarkGreen2')
-        layout = [[sg.Text("", font="Any 20", size=(2000, 1), pad=((0, 0), (350, 0)), justification='center', key="sentence1"), ],
-                  [sg.Text("", font="Any 20", size=(2000, 1), pad=(0, 0), justification='center', key="sentence2"), ],
-                  [sg.Text("", font="Any 20", size=(2000, 1), pad=((0, 0), (0, 30)), justification='center', key="sentence3"), ],
-                  [sg.Text("", font="Any 18", size=(2000, 1), pad=(0, 0), justification='center', key="phonemes1"), ],
-                  [sg.Text("", font="Any 18", size=(2000, 1), pad=(0, 0), justification='center', key="phonemes2"), ],
-                  [sg.Text("", font="Any 18", size=(2000, 1), pad=(0, 0), justification='center', key="phonemes3"), ],
-                  [sg.Text("Left CTRL-Key for next, ALT-Key for previous, ESC-Key to exit", font="Any 10", size=(2000, 1),
-                           pad=((0, 0), (300, 0)),
+        layout = [[sg.Text("",
+                           font=f"Any {int(self.scaling_factor * 20)}",
+                           size=(int(self.scaling_factor * 2000), 1),
+                           pad=((0, 0), (int(self.scaling_factor * 350), 0)),
+                           justification='center',
+                           key="sentence1"), ],
+                  [sg.Text("", font=f"Any {int(self.scaling_factor * 20)}",
+                           size=(int(self.scaling_factor * 2000), 1),
+                           pad=(0, 0),
+                           justification='center',
+                           key="sentence2"), ],
+                  [sg.Text("", font=f"Any {int(self.scaling_factor * 20)}",
+                           size=(int(self.scaling_factor * 2000), 1),
+                           pad=((0, 0), (0, int(self.scaling_factor * 30))),
+                           justification='center',
+                           key="sentence3"), ],
+                  [sg.Text("", font=f"Any {int(self.scaling_factor * 18)}",
+                           size=(int(self.scaling_factor * 2000), 1),
+                           pad=(0, 0),
+                           justification='center',
+                           key="phonemes1"), ],
+                  [sg.Text("", font=f"Any {int(self.scaling_factor * 18)}",
+                           size=(int(self.scaling_factor * 2000), 1),
+                           pad=(0, 0),
+                           justification='center',
+                           key="phonemes2"), ],
+                  [sg.Text("", font=f"Any {int(self.scaling_factor * 18)}",
+                           size=(int(self.scaling_factor * 2000), 1),
+                           pad=(0, 0),
+                           justification='center',
+                           key="phonemes3"), ],
+                  [sg.Text("Left CTRL-Key for push-to-talk, ESC-Key to exit, ALT-Key to redo the last prompt",
+                           font=f"Any {int(self.scaling_factor * 10)}",
+                           size=(int(self.scaling_factor * 2000), 1),
+                           pad=((0, 0), (int(self.scaling_factor * 300), 0)),
                            justification='center', ), ]]
         window = sg.Window(self.corpus_name, layout)
         window.read(5)
