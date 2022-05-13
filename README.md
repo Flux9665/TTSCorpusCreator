@@ -9,7 +9,17 @@ myself called FluxVoiceGerman. It uses a subset of the prompts of the preview of
 
 #### Installation
 
-`pip install -r requirements.txt` should suffice. Tested with python 3.8
+1. Create an environment (here shown with conda as example)
+
+```
+conda create --prefix ./toucan_conda_venv --no-default-packages python=3.8
+```
+
+2. Install dependencies:
+
+```
+pip install --no-cache-dir -r requirements.txt
+```
 
 ---
 
