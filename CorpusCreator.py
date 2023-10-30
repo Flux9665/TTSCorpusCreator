@@ -1,19 +1,16 @@
 import os
-import re
 import time
-from multiprocessing import Manager
-from multiprocessing import Process
 
 import PySimpleGUI as sg
 import numpy as np
-import phonemizer
 import pyaudio
 import pyloudnorm
 import soundfile as sf
 import torch
-from numpy import trim_zeros
 from pynput import keyboard
-from torchaudio.transforms import Vad as VoiceActivityDetection
+from torch.multiprocessing import Manager
+from torch.multiprocessing import Process
+from torchaudio.transforms import Resample
 
 import parameters
 
@@ -26,8 +23,8 @@ class CorpusCreator:
         """
         self.corpus_name = parameters.current_corpus_name
         self.index = Manager().list()
-        self.vad = self.vad = VoiceActivityDetection(sample_rate=parameters.sampling_rate)
         self.meter = pyloudnorm.Meter(parameters.sampling_rate)
+        self.resampler = Resample(orig_freq=parameters.sampling_rate, new_freq=16000)
         self.audio_save_dir = "Corpora/{}/".format(self.corpus_name)
         os.makedirs("Corpora/{}/unprocessed".format(self.corpus_name), exist_ok=True)
         self.record_flag = Manager().list()
@@ -35,12 +32,10 @@ class CorpusCreator:
         recorder_process = Process(target=self.recorder)
         recorder_process.start()
         self.stop_flag = False
-        self.datapoint = Manager().list()
-        self.datapoint.append("")
-        self.datapoint.append("")
+        self.datapoint = "loading..."
         self.done_ones = list()
-        self.lookup_path = "Corpora/{}/metadata.csv".format(self.corpus_name)
-        with open("Corpora/{}/prompts.txt".format(self.corpus_name), mode='r', encoding='utf8') as prompts:
+        self.lookup_path = f"Corpora/{self.corpus_name}/metadata.csv"
+        with open(f"Corpora/{self.corpus_name}/prompts.txt", mode='r', encoding='utf8') as prompts:
             self.prompt_list = Manager().list(prompts.read().split("\n"))
         if not os.path.exists(self.lookup_path):
             with open(self.lookup_path, mode='w', encoding='utf8') as lookup_file:
@@ -50,16 +45,28 @@ class CorpusCreator:
                 if file.endswith(".wav"):
                     self.done_ones.append(self.prompt_list.pop(0))
                     self.index.append("")
-        self.update_datapoint(self.prompt_list[0])
+
+        torch.hub._validate_not_a_forked_repo = lambda a, b, c: True  # torch 1.9 has a bug in the hub loading, this is a workaround
+        # careful: assumes 16kHz or 8kHz audio
+        self.silero_model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
+                                                  model='silero_vad',
+                                                  force_reload=False,
+                                                  onnx=False,
+                                                  verbose=False)
+        (self.get_speech_timestamps,
+         self.save_audio,
+         self.read_audio,
+         self.VADIterator,
+         self.collect_chunks) = utils
         width, height = sg.Window.get_screen_size()
-        self.scaling_factor = height / 1080  # this was developed on a 1080p display, so all UI elements need to be downscaled for smaller heights
+        self.scaling_factor = 1.5 * (height / 1080)  # this was developed on a 1080p display, so all UI elements need to be downscaled for smaller heights
+        self.update_datapoint(self.prompt_list[0])
 
     def update_datapoint(self, sentence):
         """
         Load new datapoint for display and use
         """
-        self.datapoint[0] = sentence
-        self.datapoint[1] = phonemize(sentence)
+        self.datapoint = sentence
 
     def update_lookup(self):
         """
@@ -67,7 +74,7 @@ class CorpusCreator:
         """
         with open(self.lookup_path, mode='r', encoding='utf8') as lookup_file:
             current_file = lookup_file.read()
-        new_file = current_file + "\n" + "{}|{}|{}".format("{}.wav".format(len(self.index)), self.datapoint[1], self.datapoint[0])
+        new_file = current_file + "\n" + f"{len(self.index)}.wav|{self.datapoint}"
         with open(self.lookup_path, mode='w', encoding='utf8') as lookup_file:
             lookup_file.write(new_file.strip("\n"))
             if len(self.prompt_list) > 1:
@@ -87,7 +94,7 @@ class CorpusCreator:
         layout = [[sg.Text("",
                            font=f"Any {int(self.scaling_factor * 20)}",
                            size=(int(self.scaling_factor * 2000), 1),
-                           pad=((0, 0), (int(self.scaling_factor * 350), 0)),
+                           pad=((0, 0), (int(self.scaling_factor * 150), 0)),
                            justification='center',
                            key="sentence1"), ],
                   [sg.Text("", font=f"Any {int(self.scaling_factor * 20)}",
@@ -100,21 +107,6 @@ class CorpusCreator:
                            pad=((0, 0), (0, int(self.scaling_factor * 30))),
                            justification='center',
                            key="sentence3"), ],
-                  [sg.Text("", font=f"Any {int(self.scaling_factor * 18)}",
-                           size=(int(self.scaling_factor * 2000), 1),
-                           pad=(0, 0),
-                           justification='center',
-                           key="phonemes1"), ],
-                  [sg.Text("", font=f"Any {int(self.scaling_factor * 18)}",
-                           size=(int(self.scaling_factor * 2000), 1),
-                           pad=(0, 0),
-                           justification='center',
-                           key="phonemes2"), ],
-                  [sg.Text("", font=f"Any {int(self.scaling_factor * 18)}",
-                           size=(int(self.scaling_factor * 2000), 1),
-                           pad=(0, 0),
-                           justification='center',
-                           key="phonemes3"), ],
                   [sg.Text("Left CTRL-Key for push-to-talk, ESC-Key to exit, ALT-Key to redo the last prompt",
                            font=f"Any {int(self.scaling_factor * 10)}",
                            size=(int(self.scaling_factor * 2000), 1),
@@ -128,45 +120,36 @@ class CorpusCreator:
         while True:
             event, values = window.read(200)
             if event == sg.WIN_CLOSED or self.stop_flag:
-                break
+                if os.path.exists(self.audio_save_dir + f"{len(self.index) - 1}.wav"):
+                    break
             window["sentence1"].update("")
             window["sentence2"].update("")
-            window["phonemes2"].update("")
-            window["phonemes3"].update("")
-            window["sentence3"].update(self.datapoint[0])
-            window["phonemes1"].update(self.datapoint[1])
-            if len(self.datapoint[0]) > 45:
+            window["sentence3"].update(self.datapoint)
+            if len(self.datapoint) > 45:
                 prompt_list = self.datapoint[0].split()
-                promt1 = " ".join(prompt_list[:-int(len(prompt_list) / 2)])
-                promt2 = " ".join(prompt_list[-int(len(prompt_list) / 2):])
-                window["sentence2"].update(promt1)
-                window["sentence3"].update(promt2)
-            if len(self.datapoint[1]) > 45:
-                phoneme_list = self.datapoint[1].split()
-                phonemes1 = " ".join(phoneme_list[:-int(len(phoneme_list) / 2)])
-                phonemes2 = " ".join(phoneme_list[-int(len(phoneme_list) / 2):])
-                window["phonemes1"].update(phonemes1)
-                window["phonemes2"].update(phonemes2)
-            if len(self.datapoint[0]) > 90:
+                prompt1 = " ".join(prompt_list[:-int(len(prompt_list) / 2)])
+                prompt2 = " ".join(prompt_list[-int(len(prompt_list) / 2):])
+                window["sentence2"].update(prompt1)
+                window["sentence3"].update(prompt2)
+            if len(self.datapoint) > 90:
                 prompt_list = self.datapoint[0].split()
-                promt1 = " ".join(prompt_list[:-int(len(prompt_list) / 3) * 2])
-                promt2 = " ".join(prompt_list[-int(len(prompt_list) / 3) * 2:-int(len(prompt_list) / 3)])
-                promt3 = " ".join(prompt_list[-int(len(prompt_list) / 3):])
-                window["sentence1"].update(promt1)
-                window["sentence2"].update(promt2)
-                window["sentence3"].update(promt3)
-            if len(self.datapoint[1]) > 90:
-                phoneme_list = self.datapoint[1].split()
-                phonemes1 = " ".join(phoneme_list[:-int(len(phoneme_list) / 3) * 2])
-                phonemes2 = " ".join(phoneme_list[-int(len(phoneme_list) / 3) * 2:-int(len(phoneme_list) / 3)])
-                phonemes3 = " ".join(phoneme_list[-int(len(phoneme_list) / 3):])
-                window["phonemes1"].update(phonemes1)
-                window["phonemes2"].update(phonemes2)
-                window["phonemes3"].update(phonemes3)
+                prompt1 = " ".join(prompt_list[:-int(len(prompt_list) / 3) * 2])
+                prompt2 = " ".join(prompt_list[-int(len(prompt_list) / 3) * 2:-int(len(prompt_list) / 3)])
+                prompt3 = " ".join(prompt_list[-int(len(prompt_list) / 3):])
+                window["sentence1"].update(prompt1)
+                window["sentence2"].update(prompt2)
+                window["sentence3"].update(prompt3)
         self.stop_recorder_process_flag.append("")
         listener.stop()
         window.close()
-        time.sleep(1)
+
+        if not os.path.exists(self.audio_save_dir + f"{len(self.index) - 1}.wav") and os.path.exists(self.audio_save_dir + f"unprocessed/{len(self.index) - 1}.wav"):
+            audio, sr = sf.read(self.audio_save_dir + f"unprocessed/{len(self.index) - 1}.wav")
+            audio = self.apply_signal_processing(audio)
+            sf.write(file=self.audio_save_dir + f"{len(self.index) - 1}.wav", data=audio, samplerate=parameters.sampling_rate)
+
+        if os.path.exists(self.audio_save_dir + f"{len(self.index) - 1}.wav"):
+            time.sleep(1)
 
     def handle_key_down(self, key):
         if key == keyboard.Key.ctrl_l and len(self.record_flag) == 0:
@@ -220,8 +203,6 @@ class CorpusCreator:
                 audio = np.hstack(frames)
                 try:
                     sf.write(file=self.audio_save_dir + "unprocessed/{}.wav".format(len(self.index) - 1), data=audio, samplerate=parameters.sampling_rate)
-                    audio = self.apply_signal_processing(audio)
-                    sf.write(file=self.audio_save_dir + "{}.wav".format(len(self.index) - 1), data=audio, samplerate=parameters.sampling_rate)
                 except ValueError:
                     print(
                         "Recording was too short! Remember that the recording goes for as long as you keep the CTRL button PRESSED and saves when you RELEASE.")
@@ -235,29 +216,22 @@ class CorpusCreator:
         peak_normed = np.divide(loud_normed, peak)
         return peak_normed
 
-    def cut_silence_from_begin_and_end(self, audio):
-        silence = torch.zeros([20000])
-        no_silence_front = self.vad(torch.cat((silence, torch.Tensor(audio), silence), 0))
-        reversed_audio = torch.flip(no_silence_front, (0,))
-        no_silence_back = self.vad(torch.Tensor(reversed_audio))
-        unreversed_audio = torch.flip(no_silence_back, (0,))
-        return trim_zeros(unreversed_audio.detach().numpy())
-
     def apply_signal_processing(self, audio):
-        audio = self.normalize_loudness(audio)
-        return self.cut_silence_from_begin_and_end(audio)
+        loud_normed = self.normalize_loudness(audio)
+        peak = np.amax(np.abs(loud_normed))
+        peak_normed = np.divide(loud_normed, peak)
+        with torch.inference_mode():
+            resampled_16khz = self.resampler(torch.Tensor(peak_normed))
+            speech_timestamps = self.get_speech_timestamps(resampled_16khz, self.silero_model, sampling_rate=16000)
+        try:
+            result = peak_normed[speech_timestamps[0]['start'] * (parameters.sampling_rate // 16000):speech_timestamps[-1]['end'] * (parameters.sampling_rate // 16000)]
+            return result
+        except IndexError:
+            print("Audio might be too short to cut silences from front and back.")
+        return peak_normed
 
 
-def phonemize(text):
-    phones = phonemizer.phonemize(text,
-                                  language_switch='remove-flags',
-                                  backend="espeak",
-                                  language=parameters.phonemizer_language,
-                                  preserve_punctuation=True,
-                                  strip=True,
-                                  punctuation_marks=';:,.!?¡¿—…"«»“”~/',
-                                  with_stress=True).replace(";", ",").replace("/", " ") \
-        .replace(":", ",").replace('"', ",").replace("-", ",").replace("-", ",").replace("\n", " ") \
-        .replace("\t", " ").replace("¡", "").replace("¿", "").replace(",", "~")
-    phones = re.sub("~+", "~", phones)
-    return phones
+if __name__ == '__main__':
+    torch.multiprocessing.set_start_method("spawn", force=True)
+    torch.multiprocessing.set_sharing_strategy('file_system')
+    CorpusCreator().run()
