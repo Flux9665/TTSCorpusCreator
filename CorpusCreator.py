@@ -119,6 +119,10 @@ class CorpusCreator:
 
         while True:
             event, values = window.read(200)
+            if not os.path.exists(self.audio_save_dir + f"{len(self.index) - 1}.wav") and os.path.exists(self.audio_save_dir + f"unprocessed/{len(self.index) - 1}.wav"):
+                audio, sr = sf.read(self.audio_save_dir + f"unprocessed/{len(self.index) - 1}.wav")
+                audio = self.apply_signal_processing(audio)
+                sf.write(file=self.audio_save_dir + f"{len(self.index) - 1}.wav", data=audio, samplerate=parameters.sampling_rate)
             if event == sg.WIN_CLOSED or self.stop_flag:
                 if os.path.exists(self.audio_save_dir + f"{len(self.index) - 1}.wav"):
                     break
@@ -142,14 +146,7 @@ class CorpusCreator:
         self.stop_recorder_process_flag.append("")
         listener.stop()
         window.close()
-
-        if not os.path.exists(self.audio_save_dir + f"{len(self.index) - 1}.wav") and os.path.exists(self.audio_save_dir + f"unprocessed/{len(self.index) - 1}.wav"):
-            audio, sr = sf.read(self.audio_save_dir + f"unprocessed/{len(self.index) - 1}.wav")
-            audio = self.apply_signal_processing(audio)
-            sf.write(file=self.audio_save_dir + f"{len(self.index) - 1}.wav", data=audio, samplerate=parameters.sampling_rate)
-
-        if os.path.exists(self.audio_save_dir + f"{len(self.index) - 1}.wav"):
-            time.sleep(1)
+        time.sleep(1)
 
     def handle_key_down(self, key):
         if key == keyboard.Key.ctrl_l and len(self.record_flag) == 0:
