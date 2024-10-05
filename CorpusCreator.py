@@ -36,7 +36,8 @@ class CorpusCreator:
         self.done_ones = list()
         self.lookup_path = f"Corpora/{self.corpus_name}/metadata.csv"
         with open(f"Corpora/{self.corpus_name}/prompts.txt", mode='r', encoding='utf8') as prompts:
-            self.prompt_list = Manager().list(prompts.read().split("\n"))
+            prompt_list = prompts.read().split("\n")
+            self.prompt_list = Manager().list(prompt_list)
         if not os.path.exists(self.lookup_path):
             with open(self.lookup_path, mode='w', encoding='utf8') as lookup_file:
                 lookup_file.write("")
@@ -130,13 +131,13 @@ class CorpusCreator:
             window["sentence2"].update("")
             window["sentence3"].update(self.datapoint)
             if len(self.datapoint) > 45:
-                prompt_list = self.datapoint[0].split()
+                prompt_list = self.datapoint.split()
                 prompt1 = " ".join(prompt_list[:-int(len(prompt_list) / 2)])
                 prompt2 = " ".join(prompt_list[-int(len(prompt_list) / 2):])
                 window["sentence2"].update(prompt1)
                 window["sentence3"].update(prompt2)
             if len(self.datapoint) > 90:
-                prompt_list = self.datapoint[0].split()
+                prompt_list = self.datapoint.split()
                 prompt1 = " ".join(prompt_list[:-int(len(prompt_list) / 3) * 2])
                 prompt2 = " ".join(prompt_list[-int(len(prompt_list) / 3) * 2:-int(len(prompt_list) / 3)])
                 prompt3 = " ".join(prompt_list[-int(len(prompt_list) / 3):])

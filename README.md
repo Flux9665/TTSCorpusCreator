@@ -12,7 +12,7 @@ myself called ExampleCorpus. It uses a subset of the prompts of the preview of t
 1. Create an environment (here shown with conda as example)
 
 ```
-conda create --prefix ./toucan_conda_venv --no-default-packages python=3.8
+conda create --prefix ./conda_venv --no-default-packages python=3.10
 ```
 
 2. Install dependencies:
